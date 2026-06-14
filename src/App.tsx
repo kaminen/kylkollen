@@ -178,6 +178,32 @@ function readStored<T>(key: string, fallback: T): T {
   }
 }
 
+function useBodyScrollLock() {
+  useEffect(() => {
+    const scrollY = window.scrollY
+    const body = document.body
+    const previousStyles = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+
+    return () => {
+      body.style.position = previousStyles.position
+      body.style.top = previousStyles.top
+      body.style.width = previousStyles.width
+      body.style.overflow = previousStyles.overflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
+}
+
 async function lookupProductByEan(
   ean: string,
   signal?: AbortSignal,
@@ -237,6 +263,7 @@ function App() {
     StorageLocation | 'Alla'
   >('Alla')
   const [showAddFood, setShowAddFood] = useState(false)
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null)
   const [shoppingInput, setShoppingInput] = useState('')
   const [shoppingWarning, setShoppingWarning] = useState('')
 
@@ -324,16 +351,23 @@ function App() {
     setView('inventory')
   }
 
-  function useOne(item: FoodItem) {
+  function consumeFood(item: FoodItem, quantity: number) {
+    const remaining = item.quantity - quantity
     const nextFood =
-      item.quantity <= 1
+      remaining <= 0
         ? food.filter((foodItem) => foodItem.id !== item.id)
         : food.map((foodItem) =>
             foodItem.id === item.id
-              ? { ...foodItem, quantity: foodItem.quantity - 1 }
+              ? { ...foodItem, quantity: remaining }
               : foodItem,
           )
     saveFood(nextFood)
+    setSelectedFood(null)
+  }
+
+  function removeFood(item: FoodItem) {
+    saveFood(food.filter((foodItem) => foodItem.id !== item.id))
+    setSelectedFood(null)
   }
 
   return (
@@ -365,7 +399,7 @@ function App() {
             onShowInventory={() => setView('inventory')}
             onShowShopping={() => setView('shopping')}
             onAddFood={() => setShowAddFood(true)}
-            onUseOne={useOne}
+            onUse={setSelectedFood}
           />
         )}
 
@@ -378,7 +412,7 @@ function App() {
             onSearch={setSearch}
             onFilter={setLocationFilter}
             onAddFood={() => setShowAddFood(true)}
-            onUseOne={useOne}
+            onUse={setSelectedFood}
           />
         )}
 
@@ -457,6 +491,14 @@ function App() {
           onClose={() => setShowAddFood(false)}
         />
       )}
+      {selectedFood && (
+        <UseFoodDialog
+          item={selectedFood}
+          onConfirm={(quantity) => consumeFood(selectedFood, quantity)}
+          onRemove={() => removeFood(selectedFood)}
+          onClose={() => setSelectedFood(null)}
+        />
+      )}
     </div>
   )
 }
@@ -468,7 +510,7 @@ function HomeView({
   onShowInventory,
   onShowShopping,
   onAddFood,
-  onUseOne,
+  onUse,
 }: {
   food: FoodItem[]
   expiringFood: FoodItem[]
@@ -476,7 +518,7 @@ function HomeView({
   onShowInventory: () => void
   onShowShopping: () => void
   onAddFood: () => void
-  onUseOne: (item: FoodItem) => void
+  onUse: (item: FoodItem) => void
 }) {
   return (
     <>
@@ -525,7 +567,7 @@ function HomeView({
         </div>
         <div className="expiry-list">
           {expiringFood.slice(0, 3).map((item) => (
-            <FoodRow key={item.id} item={item} onUseOne={onUseOne} />
+            <FoodRow key={item.id} item={item} onUse={onUse} />
           ))}
           {expiringFood.length === 0 && (
             <div className="empty-state">
@@ -559,7 +601,7 @@ function InventoryView({
   onSearch,
   onFilter,
   onAddFood,
-  onUseOne,
+  onUse,
 }: {
   food: FoodItem[]
   allFood: FoodItem[]
@@ -568,7 +610,7 @@ function InventoryView({
   onSearch: (value: string) => void
   onFilter: (value: StorageLocation | 'Alla') => void
   onAddFood: () => void
-  onUseOne: (item: FoodItem) => void
+  onUse: (item: FoodItem) => void
 }) {
   const locations: Array<StorageLocation | 'Alla'> = [
     'Alla',
@@ -619,7 +661,7 @@ function InventoryView({
 
       <div className="inventory-list">
         {food.map((item) => (
-          <FoodRow key={item.id} item={item} onUseOne={onUseOne} detailed />
+          <FoodRow key={item.id} item={item} onUse={onUse} detailed />
         ))}
         {food.length === 0 && (
           <div className="empty-state">
@@ -721,11 +763,11 @@ function ShoppingView({
 
 function FoodRow({
   item,
-  onUseOne,
+  onUse,
   detailed = false,
 }: {
   item: FoodItem
-  onUseOne: (item: FoodItem) => void
+  onUse: (item: FoodItem) => void
   detailed?: boolean
 }) {
   const days = daysUntil(item.expiresAt)
@@ -747,13 +789,111 @@ function FoodRow({
       <button
         className="use-button"
         type="button"
-        onClick={() => onUseOne(item)}
-        title="Använd en"
-        aria-label={`Använd en ${item.name}`}
+        onClick={() => onUse(item)}
+        aria-label={`Använd ${item.name}`}
       >
-        −1
+        Använd
       </button>
     </article>
+  )
+}
+
+function UseFoodDialog({
+  item,
+  onConfirm,
+  onRemove,
+  onClose,
+}: {
+  item: FoodItem
+  onConfirm: (quantity: number) => void
+  onRemove: () => void
+  onClose: () => void
+}) {
+  const [quantity, setQuantity] = useState(1)
+  useBodyScrollLock()
+
+  return createPortal(
+    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="dialog use-food-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="use-food-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="dialog-handle" />
+        <div className="dialog-heading">
+          <div>
+            <p className="eyebrow">Uppdatera lagret</p>
+            <h2 id="use-food-title">Använd {item.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Stäng">
+            ×
+          </button>
+        </div>
+
+        <div className="use-food-summary">
+          <div className="food-emoji">{item.emoji}</div>
+          <div>
+            <strong>
+              {item.quantity} {item.unit} hemma
+            </strong>
+            <p>
+              {item.location} · {expiryLabel(item.expiresAt)}
+            </p>
+          </div>
+        </div>
+
+        <div className="quantity-picker">
+          <span>Hur många använder ni?</span>
+          <div>
+            <button
+              type="button"
+              onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+              disabled={quantity === 1}
+              aria-label="Minska antal"
+            >
+              −
+            </button>
+            <strong>{quantity}</strong>
+            <button
+              type="button"
+              onClick={() =>
+                setQuantity((current) => Math.min(item.quantity, current + 1))
+              }
+              disabled={quantity === item.quantity}
+              aria-label="Öka antal"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {item.quantity > 1 && (
+          <button
+            className="use-all-button"
+            type="button"
+            onClick={() => setQuantity(item.quantity)}
+          >
+            Använd allt
+          </button>
+        )}
+
+        <button
+          className="primary-button use-confirm-button"
+          type="button"
+          onClick={() => onConfirm(quantity)}
+        >
+          {quantity === item.quantity
+            ? 'Använd allt och ta bort'
+            : `Använd ${quantity} ${item.unit}`}
+        </button>
+        <button className="discard-button" type="button" onClick={onRemove}>
+          Ta bort från lagret
+        </button>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -773,29 +913,7 @@ function AddFoodDialog({
   const [product, setProduct] = useState<ProductLookup | null>(null)
   const lookupControllerRef = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    const scrollY = window.scrollY
-    const body = document.body
-    const previousStyles = {
-      position: body.style.position,
-      top: body.style.top,
-      width: body.style.width,
-      overflow: body.style.overflow,
-    }
-
-    body.style.position = 'fixed'
-    body.style.top = `-${scrollY}px`
-    body.style.width = '100%'
-    body.style.overflow = 'hidden'
-
-    return () => {
-      body.style.position = previousStyles.position
-      body.style.top = previousStyles.top
-      body.style.width = previousStyles.width
-      body.style.overflow = previousStyles.overflow
-      window.scrollTo(0, scrollY)
-    }
-  }, [])
+  useBodyScrollLock()
 
   useEffect(
     () => () => {

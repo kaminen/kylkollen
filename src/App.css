@@ -283,15 +283,19 @@ button {
 }
 
 .use-button {
-  width: 33px;
-  height: 33px;
-  padding: 0;
+  min-width: 58px;
+  height: 36px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--green-700);
-  background: white;
+  background: var(--green-100);
   font-size: 11px;
   font-weight: 700;
+}
+
+.use-button:active {
+  transform: scale(0.97);
 }
 
 .tip-card {
@@ -861,6 +865,102 @@ button {
   margin-top: 4px;
 }
 
+.use-food-dialog {
+  max-width: 440px;
+}
+
+.use-food-summary {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 24px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+}
+
+.use-food-summary strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.use-food-summary p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.quantity-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 15px 0;
+}
+
+.quantity-picker > span {
+  color: #526057;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quantity-picker > div {
+  display: grid;
+  grid-template-columns: 42px 44px 42px;
+  align-items: center;
+}
+
+.quantity-picker button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--green-700);
+  background: white;
+  font-size: 22px;
+}
+
+.quantity-picker button:disabled {
+  color: #b8beba;
+  background: #f2f3f0;
+}
+
+.quantity-picker strong {
+  color: var(--green-900);
+  font: 800 18px/1 'Manrope', sans-serif;
+  text-align: center;
+}
+
+.use-all-button {
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  color: var(--green-700);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.use-confirm-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.discard-button {
+  width: 100%;
+  margin-top: 9px;
+  padding: 11px;
+  border: 0;
+  color: #a34b35;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .scanner-overlay {
   width: 100%;
   height: 100vh;
@@ -1017,7 +1117,7 @@ button {
   }
 
   .food-row {
-    grid-template-columns: 43px minmax(80px, 1fr) auto;
+    grid-template-columns: 43px minmax(58px, 1fr) auto auto;
     gap: 9px;
     padding: 11px;
   }
@@ -1028,7 +1128,11 @@ button {
   }
 
   .use-button {
-    display: none;
+    min-width: 54px;
+    height: 34px;
+    display: block;
+    padding: 0 8px;
+    font-size: 10px;
   }
 
   .expiry-badge {
