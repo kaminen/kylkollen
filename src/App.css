@@ -217,9 +217,9 @@ button {
 }
 
 .food-row {
-  min-height: 76px;
+  min-height: 84px;
   display: grid;
-  grid-template-columns: 48px minmax(95px, 1fr) auto auto;
+  grid-template-columns: 48px minmax(120px, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 12px 14px;
@@ -246,11 +246,10 @@ button {
 
 .food-info strong {
   display: block;
-  overflow: hidden;
   color: var(--ink);
   font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .food-info p {
@@ -260,11 +259,25 @@ button {
 }
 
 .expiry-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
   padding: 6px 8px;
   border-radius: 9px;
+  white-space: nowrap;
+}
+
+.expiry-badge > span {
+  font-size: 8px;
+  font-weight: 600;
+  opacity: 0.72;
+  text-transform: uppercase;
+}
+
+.expiry-badge > strong {
   font-size: 10px;
   font-weight: 700;
-  white-space: nowrap;
 }
 
 .expiry-badge.urgent {
@@ -292,6 +305,13 @@ button {
   background: var(--green-100);
   font-size: 11px;
   font-weight: 700;
+}
+
+.food-row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .use-button:active {
@@ -1117,27 +1137,62 @@ button {
   }
 
   .food-row {
-    grid-template-columns: 43px minmax(58px, 1fr) auto auto;
-    gap: 9px;
-    padding: 11px;
+    min-height: 118px;
+    grid-template-columns: 43px minmax(0, 1fr);
+    grid-template-areas:
+      'emoji info'
+      'actions actions';
+    gap: 8px 11px;
+    align-items: start;
+    padding: 13px;
   }
 
   .food-emoji {
+    grid-area: emoji;
     width: 42px;
     height: 42px;
   }
 
+  .food-info {
+    grid-area: info;
+    padding-top: 1px;
+  }
+
+  .food-info strong {
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .food-info p {
+    margin-top: 5px;
+    font-size: 11px;
+  }
+
+  .food-row-actions {
+    grid-area: actions;
+    justify-content: space-between;
+    padding-top: 9px;
+    border-top: 1px solid #edf0eb;
+  }
+
   .use-button {
-    min-width: 54px;
-    height: 34px;
+    min-width: 82px;
+    height: 38px;
     display: block;
-    padding: 0 8px;
-    font-size: 10px;
+    padding: 0 14px;
+    font-size: 11px;
   }
 
   .expiry-badge {
-    padding: 5px 6px;
-    font-size: 9px;
+    min-width: 0;
+    padding: 5px 8px;
+  }
+
+  .expiry-badge > strong {
+    overflow: hidden;
+    max-width: 170px;
+    font-size: 10px;
+    text-overflow: ellipsis;
   }
 
   .dialog-backdrop {
