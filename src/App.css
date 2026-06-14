@@ -1160,6 +1160,16 @@ button {
     font-size: 16px;
   }
 
+  .add-food-submit {
+    position: sticky;
+    z-index: 3;
+    bottom: 0;
+    margin: 2px -8px -10px;
+    border: 8px solid var(--cream);
+    min-height: 65px;
+    box-shadow: 0 -12px 22px rgba(250, 249, 244, 0.94);
+  }
+
   .camera-frame {
     margin-top: 14px;
     border-radius: 16px;

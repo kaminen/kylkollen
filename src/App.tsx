@@ -1102,7 +1102,7 @@ function AddFoodDialog({
               required
             />
           </label>
-          <button className="primary-button" type="submit">
+          <button className="primary-button add-food-submit" type="submit">
             Lägg till i lagret
           </button>
         </form>
