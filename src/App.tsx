@@ -1,5 +1,6 @@
 import type { IScannerControls } from '@zxing/browser'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './App.css'
 
 type StorageLocation = 'Kyl' | 'Frys' | 'Skafferi'
@@ -772,6 +773,30 @@ function AddFoodDialog({
   const [product, setProduct] = useState<ProductLookup | null>(null)
   const lookupControllerRef = useRef<AbortController | null>(null)
 
+  useEffect(() => {
+    const scrollY = window.scrollY
+    const body = document.body
+    const previousStyles = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+
+    return () => {
+      body.style.position = previousStyles.position
+      body.style.top = previousStyles.top
+      body.style.width = previousStyles.width
+      body.style.overflow = previousStyles.overflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
+
   useEffect(
     () => () => {
       lookupControllerRef.current?.abort()
@@ -850,7 +875,12 @@ function AddFoodDialog({
             <button
               className="scan-button"
               type="button"
-              onClick={() => setShowScanner(true)}
+              onClick={() => {
+                if (document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur()
+                }
+                setShowScanner(true)
+              }}
             >
               <span aria-hidden="true">▥</span>
               Skanna
@@ -912,7 +942,6 @@ function AddFoodDialog({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Till exempel mjölk"
-              autoFocus
               required
             />
           </label>
@@ -982,6 +1011,7 @@ function BarcodeScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
+  const detectedRef = useRef(false)
   const [status, setStatus] = useState('Startar kameran...')
 
   useEffect(() => {
@@ -1021,10 +1051,12 @@ function BarcodeScanner({
           },
           video,
           (result) => {
-            if (cancelled || !result) return
+            if (cancelled || detectedRef.current || !result) return
 
             const value = result.getText().replace(/\D/g, '')
             if (value.length >= 8 && value.length <= 14) {
+              detectedRef.current = true
+              controlsRef.current?.stop()
               navigator.vibrate?.(80)
               onDetected(value)
             }
@@ -1054,7 +1086,7 @@ function BarcodeScanner({
     }
   }, [onDetected])
 
-  return (
+  return createPortal(
     <div className="scanner-overlay" role="dialog" aria-modal="true">
       <div className="scanner-topbar">
         <div>
@@ -1075,7 +1107,8 @@ function BarcodeScanner({
         Kameran kräver HTTPS på mobilen. Lokal utveckling fungerar via
         localhost.
       </p>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
