@@ -1,27 +1,21 @@
 import type { IScannerControls } from '@zxing/browser'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import './App.css'
+import type {
+  FoodItem,
+  HouseholdMutation,
+  HouseholdState,
+  ShoppingItem,
+  StorageLocation,
+} from './domain'
+import {
+  createHousehold,
+  getHousehold,
+  mutateHousehold,
+} from './household-api'
 
-type StorageLocation = 'Kyl' | 'Frys' | 'Skafferi'
 type View = 'home' | 'inventory' | 'shopping'
-
-type FoodItem = {
-  id: number
-  ean?: string
-  name: string
-  quantity: number
-  unit: string
-  location: StorageLocation
-  expiresAt: string
-  emoji: string
-}
-
-type ShoppingItem = {
-  id: number
-  name: string
-  checked: boolean
-}
 
 type ProductLookup = {
   name: string
@@ -263,9 +257,19 @@ function App() {
     StorageLocation | 'Alla'
   >('Alla')
   const [showAddFood, setShowAddFood] = useState(false)
+  const [showHousehold, setShowHousehold] = useState(false)
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null)
   const [shoppingInput, setShoppingInput] = useState('')
   const [shoppingWarning, setShoppingWarning] = useState('')
+  const [householdCode, setHouseholdCode] = useState(
+    () => localStorage.getItem('kylkollen-household-code') ?? '',
+  )
+  const [householdName, setHouseholdName] = useState('Familjen hemma')
+  const [syncStatus, setSyncStatus] = useState<
+    'local' | 'syncing' | 'shared' | 'error'
+  >(householdCode ? 'syncing' : 'local')
+  const syncQueueRef = useRef(Promise.resolve())
+  const pendingSyncsRef = useRef(0)
 
   const expiringFood = useMemo(
     () =>
@@ -291,14 +295,70 @@ function App() {
       .sort((a, b) => a.name.localeCompare(b.name, 'sv'))
   }, [food, locationFilter, search])
 
-  function saveFood(nextFood: FoodItem[]) {
+  const applyHouseholdState = useCallback((state: HouseholdState) => {
+    setFood(state.food)
+    setShopping(state.shopping)
+    setHouseholdName(state.householdName)
+    localStorage.setItem('kylkollen-food', JSON.stringify(state.food))
+    localStorage.setItem('kylkollen-shopping', JSON.stringify(state.shopping))
+  }, [])
+
+  const refreshHousehold = useCallback(async () => {
+    if (!householdCode || pendingSyncsRef.current > 0) return
+    setSyncStatus('syncing')
+    try {
+      const result = await getHousehold(householdCode)
+      applyHouseholdState(result.state)
+      setSyncStatus('shared')
+    } catch {
+      setSyncStatus('error')
+    }
+  }, [applyHouseholdState, householdCode])
+
+  useEffect(() => {
+    if (!householdCode) return
+    const initialSync = window.setTimeout(() => {
+      void refreshHousehold()
+    }, 0)
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshHousehold()
+    }, 15_000)
+
+    return () => {
+      window.clearTimeout(initialSync)
+      window.clearInterval(interval)
+    }
+  }, [householdCode, refreshHousehold])
+
+  function saveFoodLocal(nextFood: FoodItem[]) {
     setFood(nextFood)
     localStorage.setItem('kylkollen-food', JSON.stringify(nextFood))
   }
 
-  function saveShopping(nextShopping: ShoppingItem[]) {
+  function saveShoppingLocal(nextShopping: ShoppingItem[]) {
     setShopping(nextShopping)
     localStorage.setItem('kylkollen-shopping', JSON.stringify(nextShopping))
+  }
+
+  function enqueueMutation(mutation: HouseholdMutation) {
+    if (!householdCode) return
+
+    pendingSyncsRef.current += 1
+    setSyncStatus('syncing')
+    syncQueueRef.current = syncQueueRef.current
+      .then(async () => {
+        const result = await mutateHousehold(householdCode, mutation)
+        pendingSyncsRef.current -= 1
+        if (pendingSyncsRef.current === 0) {
+          applyHouseholdState(result.state)
+          setSyncStatus('shared')
+        }
+      })
+      .catch(() => {
+        pendingSyncsRef.current = Math.max(0, pendingSyncsRef.current - 1)
+        setSyncStatus('error')
+      })
   }
 
   function addShoppingItem(event: React.FormEvent) {
@@ -321,10 +381,12 @@ function App() {
       return
     }
 
-    saveShopping([
+    const item = { id: Date.now(), name, checked: false }
+    saveShoppingLocal([
       ...shopping,
-      { id: Date.now(), name, checked: false },
+      item,
     ])
+    enqueueMutation({ type: 'add_shopping', item })
     setShoppingInput('')
     setShoppingWarning('')
   }
@@ -346,7 +408,8 @@ function App() {
       emoji: getFoodEmoji(name),
     }
 
-    saveFood([...food, nextItem])
+    saveFoodLocal([...food, nextItem])
+    enqueueMutation({ type: 'add_food', item: nextItem })
     setShowAddFood(false)
     setView('inventory')
   }
@@ -361,12 +424,14 @@ function App() {
               ? { ...foodItem, quantity: remaining }
               : foodItem,
           )
-    saveFood(nextFood)
+    saveFoodLocal(nextFood)
+    enqueueMutation({ type: 'consume_food', id: item.id, quantity })
     setSelectedFood(null)
   }
 
   function removeFood(item: FoodItem) {
-    saveFood(food.filter((foodItem) => foodItem.id !== item.id))
+    saveFoodLocal(food.filter((foodItem) => foodItem.id !== item.id))
+    enqueueMutation({ type: 'remove_food', id: item.id })
     setSelectedFood(null)
   }
 
@@ -382,11 +447,18 @@ function App() {
           <span className="brand-mark">K</span>
           <span>
             <strong>Kylkollen</strong>
-            <small>Familjen hemma</small>
+            <small>
+              {householdCode ? householdName : 'Lokalt på enheten'}
+            </small>
           </span>
         </button>
-        <button className="avatar" type="button" aria-label="Öppna profil">
-          FK
+        <button
+          className={`avatar sync-${syncStatus}`}
+          type="button"
+          aria-label="Öppna hushåll"
+          onClick={() => setShowHousehold(true)}
+        >
+          {householdCode ? '↻' : 'FK'}
         </button>
       </header>
 
@@ -429,23 +501,27 @@ function App() {
             onAddAnyway={() => {
               const name = shoppingInput.trim()
               if (!name) return
-              saveShopping([
+              const item = { id: Date.now(), name, checked: false }
+              saveShoppingLocal([
                 ...shopping,
-                { id: Date.now(), name, checked: false },
+                item,
               ])
+              enqueueMutation({ type: 'add_shopping', item })
               setShoppingInput('')
               setShoppingWarning('')
             }}
-            onToggle={(id) =>
-              saveShopping(
+            onToggle={(id) => {
+              saveShoppingLocal(
                 shopping.map((item) =>
                   item.id === id ? { ...item, checked: !item.checked } : item,
                 ),
               )
-            }
-            onRemove={(id) =>
-              saveShopping(shopping.filter((item) => item.id !== id))
-            }
+              enqueueMutation({ type: 'toggle_shopping', id })
+            }}
+            onRemove={(id) => {
+              saveShoppingLocal(shopping.filter((item) => item.id !== id))
+              enqueueMutation({ type: 'remove_shopping', id })
+            }}
           />
         )}
       </main>
@@ -497,6 +573,36 @@ function App() {
           onConfirm={(quantity) => consumeFood(selectedFood, quantity)}
           onRemove={() => removeFood(selectedFood)}
           onClose={() => setSelectedFood(null)}
+        />
+      )}
+      {showHousehold && (
+        <HouseholdDialog
+          code={householdCode}
+          householdName={householdName}
+          syncStatus={syncStatus}
+          onCreate={async (name) => {
+            const result = await createHousehold(name, food, shopping)
+            localStorage.setItem('kylkollen-household-code', result.code)
+            setHouseholdCode(result.code)
+            applyHouseholdState(result.state)
+            setSyncStatus('shared')
+            return result.code
+          }}
+          onJoin={async (code) => {
+            const result = await getHousehold(code)
+            localStorage.setItem('kylkollen-household-code', result.code)
+            setHouseholdCode(result.code)
+            applyHouseholdState(result.state)
+            setSyncStatus('shared')
+          }}
+          onLeave={() => {
+            localStorage.removeItem('kylkollen-household-code')
+            setHouseholdCode('')
+            setSyncStatus('local')
+            setShowHousehold(false)
+          }}
+          onRefresh={refreshHousehold}
+          onClose={() => setShowHousehold(false)}
         />
       )}
     </div>
@@ -797,6 +903,245 @@ function FoodRow({
         <span className="use-button-label">Använd</span>
       </button>
     </article>
+  )
+}
+
+function HouseholdDialog({
+  code,
+  householdName,
+  syncStatus,
+  onCreate,
+  onJoin,
+  onLeave,
+  onRefresh,
+  onClose,
+}: {
+  code: string
+  householdName: string
+  syncStatus: 'local' | 'syncing' | 'shared' | 'error'
+  onCreate: (name: string) => Promise<string>
+  onJoin: (code: string) => Promise<void>
+  onLeave: () => void
+  onRefresh: () => Promise<void>
+  onClose: () => void
+}) {
+  const [mode, setMode] = useState<'start' | 'create' | 'join'>('start')
+  const [name, setName] = useState('Familjen hemma')
+  const [joinCode, setJoinCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  useBodyScrollLock()
+
+  async function create(event: React.FormEvent) {
+    event.preventDefault()
+    if (!name.trim()) return
+    setBusy(true)
+    setError('')
+    try {
+      await onCreate(name.trim())
+      setMode('start')
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : 'Kunde inte skapa hushållet.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function join(event: React.FormEvent) {
+    event.preventDefault()
+    const normalized = joinCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+    if (normalized.length !== 10) {
+      setError('Hushållskoden ska vara 10 tecken.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    try {
+      await onJoin(normalized)
+      setMode('start')
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : 'Kunde inte hitta hushållet.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setError('Kunde inte kopiera koden. Markera och kopiera den manuellt.')
+    }
+  }
+
+  return createPortal(
+    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="dialog household-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="household-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="dialog-handle" />
+        <div className="dialog-heading">
+          <div>
+            <p className="eyebrow">Delad kyl</p>
+            <h2 id="household-title">
+              {code ? householdName : 'Koppla hushållet'}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Stäng">
+            ×
+          </button>
+        </div>
+
+        {code ? (
+          <div className="household-connected">
+            <div className={`sync-card ${syncStatus}`}>
+              <span />
+              <div>
+                <strong>
+                  {syncStatus === 'syncing'
+                    ? 'Synkroniserar...'
+                    : syncStatus === 'error'
+                      ? 'Kunde inte synkronisera'
+                      : 'Delas mellan era enheter'}
+                </strong>
+                <p>
+                  {syncStatus === 'error'
+                    ? 'Lokala ändringar finns kvar. Försök igen.'
+                    : 'Ändringar skickas automatiskt till hushållet.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="share-code">
+              <span>Hushållskod</span>
+              <strong>{code}</strong>
+              <button type="button" onClick={() => void copyCode()}>
+                {copied ? 'Kopierad' : 'Kopiera kod'}
+              </button>
+            </div>
+            <p className="household-note">
+              Dela endast koden med personer som ska kunna ändra ert lager.
+            </p>
+
+            <button
+              className="primary-button household-action"
+              type="button"
+              onClick={() => void onRefresh()}
+              disabled={syncStatus === 'syncing'}
+            >
+              Synkronisera nu
+            </button>
+            <button className="discard-button" type="button" onClick={onLeave}>
+              Koppla bort den här enheten
+            </button>
+          </div>
+        ) : mode === 'create' ? (
+          <form className="household-form" onSubmit={create}>
+            <p>
+              Ditt nuvarande lokala lager flyttas till den nya gemensamma ytan.
+            </p>
+            <label>
+              Namn på hushållet
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={60}
+                autoFocus
+              />
+            </label>
+            {error && <div className="lookup-message error">{error}</div>}
+            <button className="primary-button" type="submit" disabled={busy}>
+              {busy ? 'Skapar...' : 'Skapa gemensam yta'}
+            </button>
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => setMode('start')}
+            >
+              Tillbaka
+            </button>
+          </form>
+        ) : mode === 'join' ? (
+          <form className="household-form" onSubmit={join}>
+            <p>
+              Lagret på den här enheten ersätts med hushållets gemensamma lager.
+            </p>
+            <label>
+              Hushållskod
+              <input
+                value={joinCode}
+                onChange={(event) =>
+                  setJoinCode(
+                    event.target.value
+                      .replace(/[^a-zA-Z0-9]/g, '')
+                      .toUpperCase()
+                      .slice(0, 10),
+                  )
+                }
+                placeholder="ABCD234567"
+                autoCapitalize="characters"
+                autoComplete="off"
+                maxLength={10}
+                autoFocus
+              />
+            </label>
+            {error && <div className="lookup-message error">{error}</div>}
+            <button className="primary-button" type="submit" disabled={busy}>
+              {busy ? 'Ansluter...' : 'Anslut till hushållet'}
+            </button>
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => setMode('start')}
+            >
+              Tillbaka
+            </button>
+          </form>
+        ) : (
+          <div className="household-start">
+            <p>
+              Skapa en gemensam yta eller anslut med en kod från någon i
+              hushållet.
+            </p>
+            <button
+              className="household-choice primary"
+              type="button"
+              onClick={() => setMode('create')}
+            >
+              <span>+</span>
+              <div>
+                <strong>Skapa hushåll</strong>
+                <small>Ta med lagret som finns på den här telefonen</small>
+              </div>
+            </button>
+            <button
+              className="household-choice"
+              type="button"
+              onClick={() => setMode('join')}
+            >
+              <span>→</span>
+              <div>
+                <strong>Anslut med kod</strong>
+                <small>Hämta ett befintligt gemensamt lager</small>
+              </div>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
   )
 }
 
