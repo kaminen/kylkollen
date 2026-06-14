@@ -708,6 +708,120 @@ button {
   line-height: 1.4;
 }
 
+.ean-help-row {
+  min-height: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -8px;
+}
+
+.ean-help-row .field-help {
+  margin: 0;
+}
+
+.lookup-button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  color: var(--green-700);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.lookup-message {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: -3px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  color: #6d654f;
+  background: #f7f1df;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.lookup-message.loading {
+  color: var(--green-700);
+  background: var(--green-100);
+}
+
+.lookup-message.error {
+  color: #8b4829;
+  background: var(--orange-soft);
+}
+
+.lookup-spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(40, 99, 67, 0.22);
+  border-top-color: var(--green-700);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+.product-match {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -3px;
+  padding: 11px;
+  border: 1px solid #d7e5d6;
+  border-radius: 13px;
+  background: #f0f6ed;
+}
+
+.product-match img,
+.product-placeholder {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+}
+
+.product-match img {
+  object-fit: contain;
+  background: white;
+}
+
+.product-placeholder {
+  display: grid;
+  place-items: center;
+  color: white;
+  background: var(--green-500);
+  font-weight: 700;
+}
+
+.product-match small,
+.product-match strong {
+  display: block;
+}
+
+.product-match small {
+  color: var(--green-500);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.product-match strong {
+  margin-top: 2px;
+  color: var(--green-900);
+  font-size: 13px;
+}
+
+.product-match p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .food-form input,
 .food-form select {
   width: 100%;
@@ -853,6 +967,12 @@ button {
 
   to {
     transform: translateY(55px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

@@ -22,6 +22,25 @@ type ShoppingItem = {
   checked: boolean
 }
 
+type ProductLookup = {
+  name: string
+  brand: string
+  quantity: string
+  imageUrl: string
+}
+
+type ProductLookupResponse = {
+  status?: number
+  product?: {
+    product_name_sv?: string
+    product_name?: string
+    generic_name_sv?: string
+    brands?: string
+    quantity?: string
+    image_front_small_url?: string
+  }
+}
+
 const initialFood: FoodItem[] = [
   {
     id: 1,
@@ -155,6 +174,52 @@ function readStored<T>(key: string, fallback: T): T {
     return value ? (JSON.parse(value) as T) : fallback
   } catch {
     return fallback
+  }
+}
+
+async function lookupProductByEan(
+  ean: string,
+  signal?: AbortSignal,
+): Promise<ProductLookup | null> {
+  const fields = [
+    'product_name_sv',
+    'product_name',
+    'generic_name_sv',
+    'brands',
+    'quantity',
+    'image_front_small_url',
+  ].join(',')
+  const response = await fetch(
+    `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(ean)}.json?fields=${fields}`,
+    {
+      signal,
+      headers: {
+        Accept: 'application/json',
+        'X-User-Agent': 'Kylkollen/0.1 (web app; product lookup)',
+      },
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(`Product lookup failed with status ${response.status}`)
+  }
+
+  const data = (await response.json()) as ProductLookupResponse
+  const product = data.product
+  if (data.status !== 1 || !product) return null
+
+  const name =
+    product.product_name_sv ||
+    product.product_name ||
+    product.generic_name_sv ||
+    ''
+  if (!name.trim()) return null
+
+  return {
+    name: name.trim(),
+    brand: product.brands?.split(',')[0]?.trim() ?? '',
+    quantity: product.quantity?.trim() ?? '',
+    imageUrl: product.image_front_small_url ?? '',
   }
 }
 
@@ -699,7 +764,52 @@ function AddFoodDialog({
   onClose: () => void
 }) {
   const [ean, setEan] = useState('')
+  const [name, setName] = useState('')
   const [showScanner, setShowScanner] = useState(false)
+  const [lookupState, setLookupState] = useState<
+    'idle' | 'loading' | 'found' | 'missing' | 'error'
+  >('idle')
+  const [product, setProduct] = useState<ProductLookup | null>(null)
+  const lookupControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(
+    () => () => {
+      lookupControllerRef.current?.abort()
+    },
+    [],
+  )
+
+  async function runLookup(value: string) {
+    const normalizedEan = value.replace(/\D/g, '').slice(0, 14)
+    setEan(normalizedEan)
+
+    if (normalizedEan.length < 8) {
+      setLookupState('idle')
+      setProduct(null)
+      return
+    }
+
+    lookupControllerRef.current?.abort()
+    const controller = new AbortController()
+    lookupControllerRef.current = controller
+    setLookupState('loading')
+    setProduct(null)
+
+    try {
+      const match = await lookupProductByEan(normalizedEan, controller.signal)
+      if (!match) {
+        setLookupState('missing')
+        return
+      }
+
+      setProduct(match)
+      setName(match.name)
+      setLookupState('found')
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setLookupState('error')
+    }
+  }
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -727,9 +837,11 @@ function AddFoodDialog({
               <input
                 name="ean"
                 value={ean}
-                onChange={(event) =>
+                onChange={(event) => {
                   setEan(event.target.value.replace(/\D/g, '').slice(0, 14))
-                }
+                  setLookupState('idle')
+                  setProduct(null)
+                }}
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="Skanna eller skriv in koden"
@@ -744,12 +856,65 @@ function AddFoodDialog({
               Skanna
             </button>
           </div>
-          <p className="field-help">
-            EAN-koden gör att samma produkt kan kännas igen nästa gång.
-          </p>
+          <div className="ean-help-row">
+            <p className="field-help">
+              EAN-koden används för att hitta produkten i Open Food Facts.
+            </p>
+            {ean.length >= 8 && lookupState !== 'loading' && (
+              <button
+                className="lookup-button"
+                type="button"
+                onClick={() => void runLookup(ean)}
+              >
+                Slå upp
+              </button>
+            )}
+          </div>
+          {lookupState === 'loading' && (
+            <div className="lookup-message loading" role="status">
+              <span className="lookup-spinner" />
+              Letar efter produkten...
+            </div>
+          )}
+          {lookupState === 'found' && product && (
+            <div className="product-match">
+              {product.imageUrl ? (
+                <img src={product.imageUrl} alt="" />
+              ) : (
+                <span className="product-placeholder">✓</span>
+              )}
+              <div>
+                <small>Produkt hittad</small>
+                <strong>{product.name}</strong>
+                {(product.brand || product.quantity) && (
+                  <p>
+                    {[product.brand, product.quantity].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {lookupState === 'missing' && (
+            <div className="lookup-message">
+              Produkten finns inte i databasen ännu. Fyll i namnet manuellt.
+            </div>
+          )}
+          {lookupState === 'error' && (
+            <div className="lookup-message error">
+              Uppslaget misslyckades. Kontrollera anslutningen eller fyll i namnet
+              manuellt.
+            </div>
+          )}
           <label>
             Namn
-            <input name="name" placeholder="Till exempel mjölk" autoFocus required />
+            <input
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Till exempel mjölk"
+              autoFocus
+              required
+            />
           </label>
           <div className="form-row">
             <label>
@@ -797,8 +962,8 @@ function AddFoodDialog({
         {showScanner && (
           <BarcodeScanner
             onDetected={(value) => {
-              setEan(value)
               setShowScanner(false)
+              void runLookup(value)
             }}
             onClose={() => setShowScanner(false)}
           />
