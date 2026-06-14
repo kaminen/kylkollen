@@ -217,12 +217,12 @@ button {
 }
 
 .food-row {
-  min-height: 84px;
+  min-height: 76px;
   display: grid;
-  grid-template-columns: 48px minmax(120px, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 11px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -231,13 +231,13 @@ button {
 }
 
 .food-emoji {
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
   border-radius: 15px;
   background: #f0f4ed;
-  font-size: 23px;
+  font-size: 21px;
 }
 
 .food-info {
@@ -247,71 +247,71 @@ button {
 .food-info strong {
   display: block;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
 .food-info p {
-  margin: 3px 0 0;
+  margin: 2px 0 0;
   color: var(--muted);
   font-size: 11px;
 }
 
 .expiry-badge {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  padding: 6px 8px;
-  border-radius: 9px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   white-space: nowrap;
 }
 
 .expiry-badge > span {
-  font-size: 8px;
-  font-weight: 600;
-  opacity: 0.72;
-  text-transform: uppercase;
+  font-size: 7px;
 }
 
 .expiry-badge > strong {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .expiry-badge.urgent {
   color: #a24426;
-  background: var(--orange-soft);
 }
 
 .expiry-badge.soon {
   color: #8a6a15;
-  background: #fff6d9;
 }
 
 .expiry-badge.fine {
-  color: var(--green-700);
-  background: var(--green-100);
+  color: #7e8881;
 }
 
 .use-button {
-  min-width: 58px;
-  height: 36px;
-  padding: 0 10px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 50%;
   color: var(--green-700);
-  background: var(--green-100);
-  font-size: 11px;
+  background: #f1f6ef;
+  font-size: 21px;
   font-weight: 700;
 }
 
-.food-row-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
+.use-button-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .use-button:active {
@@ -420,6 +420,7 @@ button {
 }
 
 .page-section {
+  min-width: 0;
   padding: 25px 0 20px;
 }
 
@@ -442,6 +443,9 @@ button {
 }
 
 .search-field {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 50px;
   display: flex;
   align-items: center;
@@ -458,6 +462,8 @@ button {
 }
 
 .search-field input {
+  min-width: 0;
+  max-width: 100%;
   width: 100%;
   border: 0;
   outline: 0;
@@ -1137,61 +1143,51 @@ button {
   }
 
   .food-row {
-    min-height: 118px;
-    grid-template-columns: 43px minmax(0, 1fr);
-    grid-template-areas:
-      'emoji info'
-      'actions actions';
-    gap: 8px 11px;
-    align-items: start;
-    padding: 13px;
+    min-height: 76px;
+    grid-template-columns: 42px minmax(0, 1fr) 40px;
+    gap: 11px;
+    align-items: center;
+    padding: 10px 12px;
   }
 
   .food-emoji {
-    grid-area: emoji;
     width: 42px;
     height: 42px;
   }
 
   .food-info {
-    grid-area: info;
-    padding-top: 1px;
+    padding-top: 0;
   }
 
   .food-info strong {
-    font-size: 14px;
-    line-height: 1.3;
+    font-size: 13px;
+    line-height: 1.25;
   }
 
   .food-info p {
-    margin-top: 5px;
+    margin-top: 2px;
     font-size: 11px;
-  }
-
-  .food-row-actions {
-    grid-area: actions;
-    justify-content: space-between;
-    padding-top: 9px;
-    border-top: 1px solid #edf0eb;
   }
 
   .use-button {
-    min-width: 82px;
+    min-width: 38px;
+    width: 38px;
     height: 38px;
-    display: block;
-    padding: 0 14px;
-    font-size: 11px;
+    display: grid;
+    padding: 0;
+    font-size: 21px;
   }
 
   .expiry-badge {
-    min-width: 0;
-    padding: 5px 8px;
+    max-width: 100%;
+    margin-top: 5px;
+    padding: 0;
   }
 
   .expiry-badge > strong {
     overflow: hidden;
-    max-width: 170px;
-    font-size: 10px;
+    max-width: 100%;
+    font-size: 9px;
     text-overflow: ellipsis;
   }
 
@@ -1211,8 +1207,14 @@ button {
   }
 
   .food-form input,
-  .food-form select {
+  .food-form select,
+  .search-field input,
+  .shopping-form input {
     font-size: 16px;
+  }
+
+  .search-field {
+    overflow: hidden;
   }
 
   .add-food-submit {

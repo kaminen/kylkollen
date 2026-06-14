@@ -782,21 +782,20 @@ function FoodRow({
           {item.quantity} {item.unit}
           {detailed && <span> · {item.location}</span>}
         </p>
-      </div>
-      <div className="food-row-actions">
         <div className={`expiry-badge ${urgency}`}>
-          <span>Bäst före</span>
+          <span aria-hidden="true">●</span>
           <strong>{expiryLabel(item.expiresAt)}</strong>
         </div>
-        <button
-          className="use-button"
-          type="button"
-          onClick={() => onUse(item)}
-          aria-label={`Använd ${item.name}`}
-        >
-          Använd
-        </button>
       </div>
+      <button
+        className="use-button"
+        type="button"
+        onClick={() => onUse(item)}
+        aria-label={`Använd ${item.name}`}
+      >
+        <span aria-hidden="true">−</span>
+        <span className="use-button-label">Använd</span>
+      </button>
     </article>
   )
 }
